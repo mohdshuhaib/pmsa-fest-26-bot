@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true, // Important for the google-spreadsheet library
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts", "api/**/*.ts"], // Explicitly include both directories
+  "exclude": ["node_modules"]
+}
