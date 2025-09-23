@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { addImageEntry, getImages, getChestNumbersForCollege, getOtherCategories, clearSheet } from './googleSheets';
 import { EVENTS, COLLEGES } from './config';
 
-// CHANGE: Read the new plural variable from .env
+// CHANGE: Read the new plural variable from
 const { BOT_TOKEN, ADMIN_TELEGRAM_IDS } = process.env;
 if (!BOT_TOKEN) throw new Error('"BOT_TOKEN" env variable is required!');
 // CHANGE: Create a list of admin IDs by splitting the string from the .env file
