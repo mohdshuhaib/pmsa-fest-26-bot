@@ -41,7 +41,6 @@ const createPagedKeyboard = (items: { id: string; name: string }[], page: number
 };
 
 const createCategoryKeyboard = (items: { id: string; name: string }[], prefix: string) => {
-    // This helper adds the underscore
     const buttons = items.map(item => [Markup.button.callback(item.name, `${prefix}_${item.id}`)]);
     buttons.push([Markup.button.callback('❌ Cancel Upload', 'cancel_upload')]);
     return Markup.inlineKeyboard(buttons);
@@ -53,23 +52,22 @@ const createClassKeyboard = () => {
     return Markup.inlineKeyboard(buttons);
 };
 
-// --- ADMIN WIZARD SCENE ---
+// --- ADMIN WIZARD SCENE (Single Upload) ---
 const addMediaWizard = new Scenes.WizardScene<MyContext>(
     'add-media-wizard',
 
-    // --- Step 0: Ask for media ---
+    // Step 0: Ask for media
     (ctx) => {
-        ctx.reply('Please upload a photo (as image/document) or a video. Or /cancel.');
+        ctx.reply('Please upload a single photo or video. Or /cancel.');
         ctx.wizard.next();
     },
 
-    // --- Step 1: Get media, ask for category ---
+    // Step 1: Get media, ask for category
     (ctx: any) => {
         const message = ctx.message;
         const photo = message?.photo?.pop();
         const document = message?.document;
         const video = message?.video;
-
         if (photo || (document && document.mime_type?.startsWith('image'))) {
             ctx.scene.session.media_file_id = (photo || document).file_id;
             ctx.scene.session.media_type = 'photo';
@@ -80,14 +78,13 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
             ctx.reply('That was not a valid photo or video. Please try again with /add.');
             return ctx.scene.leave();
         }
-
         if (ctx.scene.session.media_type === 'photo') {
             ctx.reply('What type of photo is this?', Markup.inlineKeyboard([
                 [Markup.button.callback('🏆 Participant Photo', 'add_participant')],
                 [Markup.button.callback('📸 Other Photo', 'add_other_photo')],
                 [Markup.button.callback('❌ Cancel', 'cancel_upload')]
             ]));
-        } else { // It's a video
+        } else {
             ctx.reply('What type of video is this?', Markup.inlineKeyboard([
                 [Markup.button.callback('🎬 Event Video', 'add_video')],
                 [Markup.button.callback('❌ Cancel', 'cancel_upload')]
@@ -96,11 +93,10 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
         ctx.wizard.next();
     },
 
-    // --- Step 2: Main Branching ---
+    // Step 2: Main Branching
     async (ctx: any) => {
         await ctx.deleteMessage().catch(() => {});
         const selection = ctx.callbackQuery?.data;
-
         if (selection === 'add_participant') {
             ctx.scene.session.category_type = 'participant';
             ctx.reply('Please type the name of the **Event** to search:');
@@ -123,40 +119,32 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
         }
     },
 
-    // --- Step 3: Search/Select Event ---
+    // Step 3: Search/Select Event
     async (ctx: any) => {
         let selectedEvent: { id: string; name: string } | undefined;
-
         if (ctx.callbackQuery?.data) {
             const eventId = ctx.callbackQuery.data.replace('select_event_', '');
             selectedEvent = EVENTS.find(e => e.id === eventId);
         } else if (ctx.message?.text) {
             const query = ctx.message.text.toLowerCase();
             const matchingEvents = EVENTS.filter(e => e.name.toLowerCase().includes(query));
-
-            if (matchingEvents.length === 0) {
-                return ctx.reply('No events found. Try typing another name:');
-            }
-            return ctx.reply('Found these events. Select one:',
-                createCategoryKeyboard(matchingEvents, 'select_event'));
+            if (matchingEvents.length === 0) return ctx.reply('No events found. Try typing another name:');
+            return ctx.reply('Found these events. Select one:', createCategoryKeyboard(matchingEvents, 'select_event'));
         }
-
         if (selectedEvent) {
             ctx.scene.session.event = selectedEvent;
             await ctx.deleteMessage().catch(() => {});
-            ctx.reply(`Event set: ${selectedEvent.name}\n\nNow, select the **Class**:`,
-                createClassKeyboard());
+            ctx.reply(`Event set: ${selectedEvent.name}\n\nNow, select the **Class**:`, createClassKeyboard());
             ctx.wizard.next();
         } else if (!ctx.callbackQuery) {
             ctx.reply('Please type a valid event name.');
         }
     },
 
-    // --- Step 4: Select Class, then ask for Individual ---
+    // Step 4: Select Class, then ask for Individual
     async (ctx: any) => {
         const classId = ctx.callbackQuery?.data.replace('select_class_', '');
         if (!classId) return;
-
         const selectedClass = CLASSES.find(c => c.id === classId);
         if (selectedClass) {
             ctx.scene.session.class = selectedClass;
@@ -166,50 +154,35 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
         }
     },
 
-    // --- Step 5: Search/Select Individual & SAVE ---
+    // Step 5: Search/Select Individual & SAVE
     async (ctx: any) => {
         let selectedIndividual: { id: string; name: string } | undefined;
-
         if (ctx.callbackQuery?.data) {
             await ctx.answerCbQuery();
-            // --- FIX: Remove the trailing underscore from the replace() ---
             const individualId = ctx.callbackQuery.data.replace('select_individual_', '');
             selectedIndividual = INDIVIDUALS.find(i => i.id === individualId);
         } else if (ctx.message?.text) {
             const query = ctx.message.text.toLowerCase();
             const matchingIndividuals = INDIVIDUALS.filter(i => i.name.toLowerCase().includes(query));
-
-            if (matchingIndividuals.length === 0) {
-                return ctx.reply('No individuals found. Try typing another name:');
-            }
-            // --- FIX: Remove the trailing underscore from the prefix ---
-            return ctx.reply('Found these individuals. Select one:',
-                createCategoryKeyboard(matchingIndividuals, 'select_individual'));
+            if (matchingIndividuals.length === 0) return ctx.reply('No individuals found. Try typing another name:');
+            return ctx.reply('Found these individuals. Select one:', createCategoryKeyboard(matchingIndividuals, 'select_individual'));
         }
 
         if (selectedIndividual) {
             ctx.scene.session.individual = selectedIndividual;
             await ctx.deleteMessage().catch(() => {});
-
             const { media_file_id, media_type, category_type, event, class: sceneClass, individual } = ctx.scene.session;
-
             if (!media_file_id || !media_type || !category_type || !event || !sceneClass || !individual) {
                 console.error('Bot Error: Missing session data in participant save.', ctx.scene.session);
                 await ctx.reply('❌ An unexpected error occurred. Session data was missing. Please start over with /add.');
                 return ctx.scene.leave();
             }
-
             try {
                 await addMediaEntry({
-                    media_file_id: media_file_id,
-                    media_type: media_type,
-                    category_type: category_type,
-                    event_id: event.id,
-                    event_name: event.name,
-                    class_id: sceneClass.id,
-                    class_name: sceneClass.name,
-                    individual_id: individual.id,
-                    individual_name: individual.name,
+                    media_file_id: media_file_id, media_type: media_type, category_type: category_type,
+                    event_id: event.id, event_name: event.name,
+                    class_id: sceneClass.id, class_name: sceneClass.name,
+                    individual_id: individual.id, individual_name: individual.name,
                 });
                 await ctx.reply('✅ Success! Participant photo has been added.');
                 return ctx.scene.leave();
@@ -223,35 +196,27 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
         }
     },
 
-    // --- Step 6: Get/Save Other Photo or Video Category & SAVE ---
+    // Step 6: Get/Save Other Photo or Video Category & SAVE
     async (ctx: any) => {
         let categoryName: string | undefined;
-
         if (ctx.callbackQuery?.data) {
             await ctx.answerCbQuery();
             categoryName = ctx.callbackQuery.data.replace('select_category_', '');
         } else if (ctx.message?.text) {
             categoryName = ctx.message.text;
         }
-
         if (categoryName) {
-            if (ctx.callbackQuery?.data) {
-                await ctx.deleteMessage().catch(() => {});
-            }
+            if (ctx.callbackQuery?.data) await ctx.deleteMessage().catch(() => {});
             const { media_file_id, media_type, category_type } = ctx.scene.session;
-
             if (!media_file_id || !media_type || !category_type) {
                 console.error('Bot Error: Missing session data in other/video save.', ctx.scene.session);
                 await ctx.reply('❌ An unexpected error occurred. Session data was missing. Please start over with /add.');
                 return ctx.scene.leave();
             }
-
             try {
                 await addMediaEntry({
-                    media_file_id: media_file_id,
-                    media_type: media_type,
-                    category_type: category_type,
-                    media_category: categoryName,
+                    media_file_id: media_file_id, media_type: media_type,
+                    category_type: category_type, media_category: categoryName,
                 });
                 await ctx.reply(`✅ Success! Media added to the "${categoryName}" category.`);
                 return ctx.scene.leave();
@@ -265,25 +230,265 @@ const addMediaWizard = new Scenes.WizardScene<MyContext>(
         }
     }
 );
-// --- END OF WIZARD ---
+// --- END OF SINGLE UPLOAD WIZARD ---
+
+// --- BATCH ADD PARTICIPANT WIZARD ---
+const batchAddWizard = new Scenes.WizardScene<MyContext>(
+    'batch-add-wizard',
+
+    // Step 0: Ask for Event
+    (ctx) => {
+        ctx.reply('--- Batch Add Participant ---\nFirst, please type the name of the **Event** to search:');
+        ctx.wizard.next();
+    },
+
+    // Step 1: Select Event, Ask for Class
+    async (ctx: any) => {
+        let selectedEvent: { id: string; name: string } | undefined;
+        if (ctx.callbackQuery?.data) {
+            const eventId = ctx.callbackQuery.data.replace('select_event_', '');
+            selectedEvent = EVENTS.find(e => e.id === eventId);
+        } else if (ctx.message?.text) {
+            const query = ctx.message.text.toLowerCase();
+            const matchingEvents = EVENTS.filter(e => e.name.toLowerCase().includes(query));
+            if (matchingEvents.length === 0) return ctx.reply('No events found. Try typing another name:');
+            return ctx.reply('Found these events. Select one:', createCategoryKeyboard(matchingEvents, 'select_event'));
+        }
+        if (selectedEvent) {
+            ctx.scene.session.event = selectedEvent;
+            await ctx.deleteMessage().catch(() => {});
+            ctx.reply(`Event set: ${selectedEvent.name}\n\nNow, select the **Class**:`, createClassKeyboard());
+            ctx.wizard.next();
+        } else if (!ctx.callbackQuery) {
+            ctx.reply('Please type a valid event name.');
+        }
+    },
+
+    // Step 2: Select Class, Ask for Individual
+    async (ctx: any) => {
+        const classId = ctx.callbackQuery?.data.replace('select_class_', '');
+        if (!classId) return;
+        const selectedClass = CLASSES.find(c => c.id === classId);
+        if (selectedClass) {
+            ctx.scene.session.class = selectedClass;
+            await ctx.deleteMessage().catch(() => {});
+            ctx.reply(`Class set: ${selectedClass.name}\n\nPlease type the name of the **Individual** to search:`);
+            ctx.wizard.next();
+        }
+    },
+
+    // Step 3: Select Individual, Enter "Listening Mode"
+    async (ctx: any) => {
+        let selectedIndividual: { id: string; name: string } | undefined;
+        if (ctx.callbackQuery?.data) {
+            await ctx.answerCbQuery();
+            const individualId = ctx.callbackQuery.data.replace('select_individual_', '');
+            selectedIndividual = INDIVIDUALS.find(i => i.id === individualId);
+        } else if (ctx.message?.text) {
+            const query = ctx.message.text.toLowerCase();
+            const matchingIndividuals = INDIVIDUALS.filter(i => i.name.toLowerCase().includes(query));
+            if (matchingIndividuals.length === 0) return ctx.reply('No individuals found. Try typing another name:');
+            return ctx.reply('Found these individuals. Select one:', createCategoryKeyboard(matchingIndividuals, 'select_individual'));
+        }
+
+        if (selectedIndividual) {
+            ctx.scene.session.individual = selectedIndividual;
+            await ctx.deleteMessage().catch(() => {});
+            await ctx.reply(`✅ Batch Mode Active\nAdding all media for:\n- **Individual:** ${selectedIndividual.name}\n- **Event:** ${ctx.scene.session.event!.name}\n- **Class:** ${ctx.scene.session.class!.name}\n\nSend me all the photos or documents now. Type /stop when you are finished.`);
+            ctx.wizard.next();
+        } else if (!ctx.callbackQuery) {
+            ctx.reply('Please type a valid name.');
+        }
+    },
+
+    // Step 4: The "Catcher" Step
+    async (ctx: any) => {
+        if (ctx.message?.text === '/stop') {
+            await ctx.reply('Batch mode stopped.');
+            return ctx.scene.leave();
+        }
+
+        const message = ctx.message;
+        const photo = message?.photo?.pop();
+        const document = message?.document;
+        let file_id: string | undefined;
+        let media_type: 'photo' | 'video' = 'photo';
+
+        if (photo) {
+            file_id = photo.file_id;
+        } else if (document && document.mime_type?.startsWith('image')) {
+            file_id = document.file_id;
+        } else {
+            await ctx.reply('Invalid input. Please send a photo/document or type /stop.');
+            return;
+        }
+
+        if (!file_id) {
+            await ctx.reply('❌ Error: Could not get file ID from that media. Please try again.');
+            return;
+        }
+
+        const { event, class: sceneClass, individual } = ctx.scene.session;
+        if (!event || !sceneClass || !individual) {
+            await ctx.reply('❌ Error: Session expired. Please start over with /batchadd.');
+            return ctx.scene.leave();
+        }
+
+        try {
+            await addMediaEntry({
+                media_file_id: file_id, media_type: media_type, category_type: 'participant',
+                event_id: event.id, event_name: event.name,
+                class_id: sceneClass.id, class_name: sceneClass.name,
+                individual_id: individual.id, individual_name: individual.name,
+            });
+            // --- FIX: Removed the failing ctx.react() line ---
+        } catch (e) {
+            console.error('Batch Add Save Error:', e);
+            await ctx.reply(`❌ Failed to save ${message.message_id}. Please try again.`);
+        }
+        return;
+    }
+);
+// --- END OF BATCH ADD WIZARD ---
+
+// --- BATCH ADD CATEGORY WIZARD ---
+const batchAddCategoryWizard = new Scenes.WizardScene<MyContext>(
+    'batch-add-category-wizard',
+
+    // Step 0: Ask for media type
+    (ctx) => {
+        ctx.reply('--- Batch Add Category ---\nFirst, what are you batch-uploading?',
+            Markup.inlineKeyboard([
+                [Markup.button.callback('📸 Other Photos', 'batch_other_photo')],
+                [Markup.button.callback('🎬 Videos', 'batch_video')],
+                [Markup.button.callback('❌ Cancel', 'cancel_upload')]
+            ])
+        );
+        ctx.wizard.next();
+    },
+
+    // Step 1: Ask for category name
+    async (ctx: any) => {
+        await ctx.deleteMessage().catch(() => {});
+        const selection = ctx.callbackQuery?.data;
+        let categories: { id: string; name: string }[] = [];
+
+        if (selection === 'batch_other_photo') {
+            ctx.scene.session.category_type = 'other_photo';
+            ctx.scene.session.media_type = 'photo';
+            categories = await getMediaCategories('other_photo');
+            ctx.reply('Select an existing "Other Photo" category, or type a new one:');
+        } else if (selection === 'batch_video') {
+            ctx.scene.session.category_type = 'video';
+            ctx.scene.session.media_type = 'video';
+            categories = await getMediaCategories('video');
+            ctx.reply('Select an existing "Video" category, or type a new one:');
+        } else {
+            return ctx.scene.leave();
+        }
+
+        await ctx.reply('Select or type:', createCategoryKeyboard(categories, 'select_category'));
+        ctx.wizard.next();
+    },
+
+    // Step 2: Get category, enter "Listening Mode"
+    async (ctx: any) => {
+        let categoryName: string | undefined;
+        if (ctx.callbackQuery?.data) {
+            await ctx.answerCbQuery();
+            categoryName = ctx.callbackQuery.data.replace('select_category_', '');
+        } else if (ctx.message?.text) {
+            categoryName = ctx.message.text;
+        }
+
+        if (categoryName) {
+            ctx.scene.session.media_category = categoryName;
+            if (ctx.callbackQuery?.data) await ctx.deleteMessage().catch(() => {});
+            await ctx.reply(`✅ Batch Mode Active\nAdding all media for category:\n- **Category:** ${categoryName}\n- **Type:** ${ctx.scene.session.media_type}\n\nSend me all your media now. Type /stop when you are finished.`);
+            ctx.wizard.next();
+        } else {
+            ctx.reply('Invalid selection. Please click a button or type a new category name.');
+        }
+    },
+
+    // Step 3: The "Catcher" Step
+    async (ctx: any) => {
+        if (ctx.message?.text === '/stop') {
+            await ctx.reply('Batch mode stopped.');
+            return ctx.scene.leave();
+        }
+
+        const message = ctx.message;
+        const { media_type, category_type, media_category } = ctx.scene.session;
+        let file_id: string | undefined;
+
+        if (media_type === 'photo') {
+            const photo = message?.photo?.pop();
+            const document = message?.document;
+            if (photo) {
+                file_id = photo.file_id;
+            } else if (document && document.mime_type?.startsWith('image')) {
+                file_id = document.file_id;
+            }
+        } else if (media_type === 'video') {
+            const video = message?.video;
+            if (video) {
+                file_id = video.file_id;
+            }
+        }
+
+        if (!file_id) {
+            await ctx.reply(`Invalid input. Please send a ${media_type} or type /stop.`);
+            return;
+        }
+
+        if (!media_category || !category_type) {
+            await ctx.reply('❌ Error: Session expired. Please start over with /batchcategory.');
+            return ctx.scene.leave();
+        }
+
+        try {
+            await addMediaEntry({
+                media_file_id: file_id,
+                media_type: media_type,
+                category_type: category_type,
+                media_category: media_category,
+            });
+            // --- FIX: Removed the failing ctx.react() line ---
+        } catch (e) {
+            console.error('Batch Category Save Error:', e);
+            await ctx.reply(`❌ Failed to save ${message.message_id}. Please try again.`);
+        }
+        return;
+    }
+);
+// --- END OF BATCH CATEGORY WIZARD ---
 
 // --- BOT SETUP ---
 export const bot = new Telegraf<MyContext>(BOT_TOKEN);
-const stage = new Scenes.Stage<MyContext>([addMediaWizard]);
+const stage = new Scenes.Stage<MyContext>([addMediaWizard, batchAddWizard, batchAddCategoryWizard]);
 bot.use(session());
 bot.use(stage.middleware());
 
 // --- WIZARD HANDLERS ---
 const cancelHandler = async (ctx: any) => {
-    if (ctx.callbackQuery) {
-        await ctx.deleteMessage().catch(() => {});
-    }
-    await ctx.reply('Upload cancelled. To start adding, click /add');
+    if (ctx.callbackQuery) await ctx.deleteMessage().catch(() => {});
+    await ctx.reply('Upload cancelled. To start adding, click /add, /batchadd, or /batchcategory');
     return ctx.scene.leave();
 };
 addMediaWizard.action('cancel_upload', cancelHandler);
 addMediaWizard.command('cancel', (ctx) => {
-    ctx.reply('Upload cancelled. To start adding, click /add');
+    ctx.reply('Upload cancelled.');
+    return ctx.scene.leave();
+});
+batchAddWizard.action('cancel_upload', cancelHandler);
+batchAddWizard.command('cancel', (ctx) => {
+    ctx.reply('Upload cancelled.');
+    return ctx.scene.leave();
+});
+batchAddCategoryWizard.action('cancel_upload', cancelHandler);
+batchAddCategoryWizard.command('cancel', (ctx) => {
+    ctx.reply('Upload cancelled.');
     return ctx.scene.leave();
 });
 
@@ -320,6 +525,16 @@ bot.command('add', (ctx) => {
     ctx.scene.enter('add-media-wizard');
 });
 
+bot.command('batchadd', (ctx) => {
+    if (!isAdmin(ctx)) return ctx.reply("⛔ You don't have permission.");
+    ctx.scene.enter('batch-add-wizard');
+});
+
+bot.command('batchcategory', (ctx) => {
+    if (!isAdmin(ctx)) return ctx.reply("⛔ You don't have permission.");
+    ctx.scene.enter('batch-add-category-wizard');
+});
+
 // --- USER COMMANDS & MAIN MENU ---
 const mainMenuText = 'Welcome! 🏅 Select a category to view photos:';
 const mainMenuKeyboard = Markup.keyboard([
@@ -336,7 +551,6 @@ bot.action('main_menu', async (ctx) => {
 });
 
 // --- ALL USER-FACING ACTIONS ---
-
 // 1. Events
 bot.hears('🏅 Events', (ctx) => {
     ctx.reply('Choose an event:', createPagedKeyboard(EVENTS, 0, 'user_event', 'view_event'));
