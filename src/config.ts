@@ -62,7 +62,8 @@ export const EVENTS = [
     { id: 'SJON07', name: 'SPELLING BEE Sub-Jun' },
     { id: 'GEON05', name: 'REEL MAKING' },
     { id: 'SEON08', name: 'DEBATE ARB Sen' },
-    { id: 'JUON12', name: 'ROLE PLAY Jun' }
+    { id: 'JUON12', name: 'ROLE PLAY Jun' },
+    { id: 'OFFI01', name: 'OFFICIALS' },
 ];
 
 // Your 7 College Classes
@@ -74,6 +75,8 @@ export const CLASSES = [
     { id: 'C5', name: 'Ithqan' },
     { id: 'C6', name: 'FN A' },
     { id: 'C7', name: 'FN B' },
+    { id: 'O1', name: 'STAFF' },
+    { id: 'O2', name: 'GUEST' },
 ];
 
 export const INDIVIDUALS = [
@@ -245,5 +248,17 @@ export const INDIVIDUALS = [
     { id: 'I_239', name: 'BASITH.N' },
     { id: 'I_136', name: 'MUFEED' },
     { id: 'I_219', name: 'LUQMAN' },
-    { id: 'I_164', name: 'SWALIH M' }
+    { id: 'I_164', name: 'SWALIH M' },
+    { id: 'O_100', name: 'UST AHMAD FAIZY' },
+    { id: 'O_101', name: 'UST SALAM FAIZY' },
+    { id: 'O_101', name: 'UST ZAKARIYA AHSANI' },
+    { id: 'O_102', name: 'UST Saleem Wafy' },
+    { id: 'O_103', name: 'UST Ajmal Wafy' },
+    { id: 'O_104', name: 'UST Sajid Wafy' },
+    { id: 'O_105', name: 'UST Basheer Wafy' },
+    { id: 'O_106', name: 'UST Azhar Wafy' },
+    { id: 'O_107', name: 'UST Shukoor Wafy' },
+    { id: 'O_108', name: 'UST Sayyid Adhil Wafy' },
+    { id: 'O_109', name: 'UST Shafi Wafy' },
+    { id: 'O_110', name: 'UST Ameen Wafy' },
 ];
